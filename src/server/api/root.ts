@@ -1,4 +1,9 @@
 import { postRouter } from "~/server/api/routers/post";
+import { authRouter } from "~/server/api/routers/auth";
+import { propertyRouter } from "~/server/api/routers/property";
+import { roomRouter } from "~/server/api/routers/room";
+import { tenantRouter } from "~/server/api/routers/tenant";
+import { taskRouter } from "~/server/api/routers/task";
 import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
 
 /**
@@ -8,6 +13,11 @@ import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
  */
 export const appRouter = createTRPCRouter({
   post: postRouter,
+  auth: authRouter,
+  property: propertyRouter,
+  room: roomRouter,
+  tenant: tenantRouter,
+  task: taskRouter,
 });
 
 // export type definition of API
