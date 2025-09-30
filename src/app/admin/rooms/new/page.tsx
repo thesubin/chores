@@ -4,11 +4,11 @@ import { ArrowLeftIcon } from "@heroicons/react/24/outline";
 import { RoomForm } from "../_components/room-form";
 
 interface NewRoomPageProps {
-  searchParams: { propertyId?: string };
+  searchParams: Promise<{ propertyId?: string }>;
 }
 
 export default async function NewRoomPage({ searchParams }: NewRoomPageProps) {
-  const { propertyId } = searchParams;
+  const { propertyId } = await searchParams;
 
   return (
     <div className="space-y-6">

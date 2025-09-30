@@ -47,7 +47,7 @@ interface TasksTableProps {
   roomId?: string;
 }
 
-export function TasksTable({ data, propertyId, roomId }: TasksTableProps) {
+export function TasksTable({ data }: TasksTableProps) {
   const router = useRouter();
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -155,7 +155,7 @@ export function TasksTable({ data, propertyId, roomId }: TasksTableProps) {
       accessorKey: "priority",
       header: "Priority",
       cell: ({ row }) => {
-        const priority = row.getValue("priority") as number;
+        const priority: number = row.getValue("priority");
         return (
           <span
             className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${

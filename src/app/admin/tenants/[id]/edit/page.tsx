@@ -6,14 +6,15 @@ import { api } from "~/trpc/server";
 import { TenantForm } from "../../_components/tenant-form";
 
 interface EditTenantPageProps {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 export default async function EditTenantPage({ params }: EditTenantPageProps) {
   // Fetch tenant data
-  const tenant = await api.tenant.getById({ id: params.id }).catch(() => {
+  const { id } = await params;
+  const tenant = await api.tenant.getById({ id }).catch(() => {
     notFound();
     // This return is just to satisfy TypeScript, notFound() throws an error
     return null;
@@ -26,7 +27,7 @@ export default async function EditTenantPage({ params }: EditTenantPageProps) {
         <div className="sm:flex-auto">
           <div className="flex items-center">
             <Link
-              href={`/admin/tenants/${params.id}`}
+              href={`/admin/tenants/${id}`}
               className="mr-4 text-gray-400 hover:text-gray-600"
             >
               <ArrowLeftIcon className="h-5 w-5" />
@@ -44,7 +45,7 @@ export default async function EditTenantPage({ params }: EditTenantPageProps) {
       {/* Form */}
       <div className="rounded-lg bg-white shadow">
         <div className="px-4 py-5 sm:p-6">
-          <TenantForm initialData={tenant} isEditing />
+          <TenantForm initialData={JSON.stringify(tenant)} isEditing />
         </div>
       </div>
     </div>

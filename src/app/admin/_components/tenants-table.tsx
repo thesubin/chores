@@ -145,7 +145,7 @@ export function TenantsTable({ data, propertyId }: TenantsTableProps) {
       accessorKey: "monthlyRent",
       header: "Monthly Rent",
       cell: ({ row }) => {
-        const amount = row.getValue("monthlyRent") as number;
+        const amount: number = row.getValue("monthlyRent");
         return (
           <div className="text-sm text-gray-900">{formatCurrency(amount)}</div>
         );

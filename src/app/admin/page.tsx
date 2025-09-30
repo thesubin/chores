@@ -1,12 +1,16 @@
+import Link from "next/link";
 import { auth } from "~/server/auth";
 import { api, HydrateClient } from "~/trpc/server";
 
 export default async function AdminDashboard() {
   const session = await auth();
 
-  // Prefetch data for admin dashboard
-  void api.property.getAll.prefetch();
-  void api.tenant.getAll.prefetch();
+  // Fetch stats server-side
+  const [properties, tenants, taskStats] = await Promise.all([
+    api.property.getAll(),
+    api.tenant.getAll(),
+    api.task.getStats(),
+  ]);
 
   return (
     <HydrateClient>
@@ -36,7 +40,9 @@ export default async function AdminDashboard() {
                     <dt className="truncate text-sm font-medium text-gray-500">
                       Total Properties
                     </dt>
-                    <dd className="text-lg font-medium text-gray-900">-</dd>
+                    <dd className="text-lg font-medium text-gray-900">
+                      {properties.length}
+                    </dd>
                   </dl>
                 </div>
               </div>
@@ -57,7 +63,9 @@ export default async function AdminDashboard() {
                     <dt className="truncate text-sm font-medium text-gray-500">
                       Total Tenants
                     </dt>
-                    <dd className="text-lg font-medium text-gray-900">-</dd>
+                    <dd className="text-lg font-medium text-gray-900">
+                      {tenants.length}
+                    </dd>
                   </dl>
                 </div>
               </div>
@@ -78,14 +86,16 @@ export default async function AdminDashboard() {
                     <dt className="truncate text-sm font-medium text-gray-500">
                       Active Tasks
                     </dt>
-                    <dd className="text-lg font-medium text-gray-900">-</dd>
+                    <dd className="text-lg font-medium text-gray-900">
+                      {taskStats.activeTasks}
+                    </dd>
                   </dl>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Pending Payments */}
+          {/* Overdue Assignments */}
           <div className="overflow-hidden rounded-lg bg-white shadow">
             <div className="p-5">
               <div className="flex items-center">
@@ -97,9 +107,11 @@ export default async function AdminDashboard() {
                 <div className="ml-5 w-0 flex-1">
                   <dl>
                     <dt className="truncate text-sm font-medium text-gray-500">
-                      Pending Payments
+                      Overdue Assignments
                     </dt>
-                    <dd className="text-lg font-medium text-gray-900">-</dd>
+                    <dd className="text-lg font-medium text-gray-900">
+                      {taskStats.overdueAssignments}
+                    </dd>
                   </dl>
                 </div>
               </div>
@@ -114,7 +126,7 @@ export default async function AdminDashboard() {
               Quick Actions
             </h3>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <a
+              <Link
                 href="/admin/properties"
                 className="relative flex items-center space-x-3 rounded-lg border border-gray-300 bg-white px-6 py-5 shadow-sm focus-within:ring-2 focus-within:ring-blue-500 focus-within:ring-offset-2 hover:border-gray-400"
               >
@@ -130,9 +142,9 @@ export default async function AdminDashboard() {
                     Add and edit properties
                   </p>
                 </div>
-              </a>
+              </Link>
 
-              <a
+              <Link
                 href="/admin/tenants"
                 className="relative flex items-center space-x-3 rounded-lg border border-gray-300 bg-white px-6 py-5 shadow-sm focus-within:ring-2 focus-within:ring-blue-500 focus-within:ring-offset-2 hover:border-gray-400"
               >
@@ -148,9 +160,9 @@ export default async function AdminDashboard() {
                     View and edit tenant profiles
                   </p>
                 </div>
-              </a>
+              </Link>
 
-              <a
+              <Link
                 href="/admin/users"
                 className="relative flex items-center space-x-3 rounded-lg border border-gray-300 bg-white px-6 py-5 shadow-sm focus-within:ring-2 focus-within:ring-blue-500 focus-within:ring-offset-2 hover:border-gray-400"
               >
@@ -166,7 +178,7 @@ export default async function AdminDashboard() {
                     Add and edit user accounts
                   </p>
                 </div>
-              </a>
+              </Link>
             </div>
           </div>
         </div>
@@ -178,11 +190,26 @@ export default async function AdminDashboard() {
               Recent Activity
             </h3>
             <div className="mt-5">
-              <div className="text-sm text-gray-500">
-                <p>
-                  No recent activity to display. Start by creating properties
-                  and adding tenants.
-                </p>
+              <div className="text-sm text-gray-700">
+                <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  <li className="rounded border p-3">
+                    <div className="text-gray-500">Totals</div>
+                    <div className="mt-1 text-gray-900">
+                      Tasks: {taskStats.totalTasks} · Pending:{" "}
+                      {taskStats.pendingAssignments} · Completed:{" "}
+                      {taskStats.completedAssignments}
+                    </div>
+                  </li>
+                  <li className="rounded border p-3">
+                    <div className="text-gray-500">Time Zone</div>
+                    <div className="mt-1 text-gray-900">
+                      {new Date().toLocaleString("en-CA", {
+                        timeZone: "America/Toronto",
+                        timeZoneName: "short",
+                      })}
+                    </div>
+                  </li>
+                </ul>
               </div>
             </div>
           </div>

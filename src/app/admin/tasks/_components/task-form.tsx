@@ -18,31 +18,7 @@ interface Room {
 }
 
 interface TaskFormProps {
-  initialData?: {
-    id: string;
-    title: string;
-    description?: string | null;
-    propertyId: string;
-    roomId?: string | null;
-    frequency: string;
-    intervalDays?: number | null;
-    estimatedDuration?: number | null;
-    priority: number;
-    assignToAll: boolean;
-    useRotation?: boolean;
-    maxAssignments?: number | null;
-    isActive: boolean;
-    property?: Property;
-    room?: Room | null;
-    assignments?: {
-      id: string;
-      user: {
-        id: string;
-        name?: string | null;
-        email?: string | null;
-      };
-    }[];
-  };
+  initialData?: string;
   propertyId?: string;
   roomId?: string;
   userId?: string;
@@ -58,41 +34,44 @@ export function TaskForm({
 }: TaskFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const parsedInitialData = initialData ? JSON.parse(initialData) : null;
   const [selectedPropertyId, setSelectedPropertyId] = useState<string>(
-    initialData?.propertyId ?? propertyId ?? "",
+    parsedInitialData?.propertyId ?? propertyId ?? "",
   );
   const [selectedFrequency, setSelectedFrequency] = useState<string>(
-    initialData?.frequency ?? "ONCE",
+    parsedInitialData?.frequency ?? "ONCE",
   );
   const [assignToSpecific, setAssignToSpecific] = useState<boolean>(
-    userId ? true : initialData ? !initialData.assignToAll : false,
+    userId ? true : parsedInitialData ? !parsedInitialData.assignToAll : false,
   );
 
   const [useRotation, setUseRotation] = useState<boolean>(
-    initialData?.useRotation ?? false,
+    parsedInitialData?.useRotation ?? false,
   );
 
   const [formData, setFormData] = useState({
-    title: initialData?.title ?? "",
-    description: initialData?.description ?? "",
-    propertyId: initialData?.propertyId ?? propertyId ?? "",
-    roomId: initialData?.roomId ?? roomId ?? "",
-    frequency: initialData?.frequency ?? "ONCE",
-    intervalDays: initialData?.intervalDays?.toString() ?? "",
-    estimatedDuration: initialData?.estimatedDuration?.toString() ?? "",
-    priority: initialData?.priority?.toString() ?? "1",
-    assignToAll: initialData?.assignToAll ?? false,
-    useRotation: initialData?.useRotation ?? false,
-    maxAssignments: initialData?.maxAssignments?.toString() ?? "",
-    isActive: initialData?.isActive ?? true,
+    title: parsedInitialData?.title ?? "",
+    description: parsedInitialData?.description ?? "",
+    propertyId: parsedInitialData?.propertyId ?? propertyId ?? "",
+    roomId: parsedInitialData?.roomId ?? roomId ?? "",
+    frequency: parsedInitialData?.frequency ?? "ONCE",
+    intervalDays: parsedInitialData?.intervalDays?.toString() ?? "",
+    estimatedDuration: parsedInitialData?.estimatedDuration?.toString() ?? "",
+    priority: parsedInitialData?.priority?.toString() ?? "1",
+    assignToAll: parsedInitialData?.assignToAll ?? false,
+    useRotation: parsedInitialData?.useRotation ?? false,
+    maxAssignments: parsedInitialData?.maxAssignments?.toString() ?? "",
+    isActive: parsedInitialData?.isActive ?? true,
     startDate: new Date().toISOString().split("T")[0],
     dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
       .toISOString()
       .split("T")[0],
     userIds: userId
       ? [userId]
-      : initialData?.assignments
-        ? initialData.assignments.map((a) => a.user.id)
+      : parsedInitialData?.assignments
+        ? parsedInitialData.assignments.map(
+            (a: { user: { id: string } }) => a.user.id,
+          )
         : [],
   });
 
@@ -144,8 +123,8 @@ export function TaskForm({
   const updateTask = api.task.update.useMutation({
     onSuccess: () => {
       toast.success("Task updated successfully");
-      if (initialData?.id) {
-        router.push(`/admin/tasks/${initialData.id}`);
+      if (parsedInitialData?.id) {
+        router.push(`/admin/tasks/${parsedInitialData.id}`);
       } else {
         router.push("/admin/tasks");
       }
@@ -160,8 +139,8 @@ export function TaskForm({
   const updateAssignments = api.task.updateAssignments.useMutation({
     onSuccess: () => {
       // This will be called after updateTask succeeds
-      if (initialData?.id) {
-        router.push(`/admin/tasks/${initialData.id}`);
+      if (parsedInitialData?.id) {
+        router.push(`/admin/tasks/${parsedInitialData.id}`);
       } else {
         router.push("/admin/tasks");
       }
@@ -235,14 +214,14 @@ export function TaskForm({
   // Handle user selection
   const handleUserSelection = (userId: string, isSelected: boolean) => {
     setFormData((prev) => {
-      const currentUserIds = prev.userIds || [];
+      const currentUserIds = prev.userIds ?? [];
 
       if (isSelected) {
         return { ...prev, userIds: [...currentUserIds, userId] };
       } else {
         return {
           ...prev,
-          userIds: currentUserIds.filter((id) => id !== userId),
+          userIds: currentUserIds.filter((id: string) => id !== userId),
         };
       }
     });
@@ -299,13 +278,13 @@ export function TaskForm({
     setIsLoading(true);
 
     try {
-      if (isEditing && initialData?.id) {
+      if (isEditing && parsedInitialData?.id) {
         // First update the task
         await updateTask.mutateAsync({
-          id: initialData.id,
+          id: parsedInitialData.id,
           title: formData.title,
-          description: formData.description || undefined,
-          roomId: formData.roomId || undefined,
+          description: formData.description ?? undefined,
+          roomId: formData.roomId ?? undefined,
           frequency: formData.frequency as
             | "ONCE"
             | "DAILY"
@@ -330,16 +309,16 @@ export function TaskForm({
         // Then update the assignments if needed
         if (assignToSpecific) {
           await updateAssignments.mutateAsync({
-            taskId: initialData.id,
+            taskId: parsedInitialData.id,
             userIds: formData.userIds,
           });
         }
       } else {
         await createTask.mutateAsync({
           title: formData.title,
-          description: formData.description || undefined,
+          description: formData.description ?? undefined,
           propertyId: formData.propertyId,
-          roomId: formData.roomId || undefined,
+          roomId: formData.roomId ?? undefined,
           frequency: formData.frequency as
             | "ONCE"
             | "DAILY"
@@ -370,8 +349,8 @@ export function TaskForm({
   };
 
   const handleCancel = () => {
-    if (initialData?.id) {
-      router.push(`/admin/tasks/${initialData.id}`);
+    if (parsedInitialData?.id) {
+      router.push(`/admin/tasks/${parsedInitialData.id}`);
     } else {
       router.push("/admin/tasks");
     }

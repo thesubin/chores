@@ -4,15 +4,15 @@ import { ArrowLeftIcon } from "@heroicons/react/24/outline";
 import { TaskForm } from "../_components/task-form";
 
 interface NewTaskPageProps {
-  searchParams: {
+  searchParams: Promise<{
     propertyId?: string;
     roomId?: string;
     userId?: string;
-  };
+  }>;
 }
 
 export default async function NewTaskPage({ searchParams }: NewTaskPageProps) {
-  const { propertyId, roomId, userId } = searchParams;
+  const { propertyId, roomId, userId } = await searchParams;
 
   return (
     <div className="space-y-6">

@@ -8,7 +8,7 @@ import {
   protectedProcedure,
   adminProcedure,
 } from "~/server/api/trpc";
-
+import type { User, Property, Room } from "@prisma/client";
 // User input validation schemas
 const createUserSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters").max(100),

@@ -60,14 +60,14 @@ export function UsersTable({ data }: UsersTableProps) {
             <div className="h-10 w-10 flex-shrink-0">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-300">
                 <span className="text-sm font-medium text-gray-700">
-                  {user.name?.[0]?.toUpperCase() ||
+                  {user.name?.[0]?.toUpperCase() ??
                     user.email?.[0]?.toUpperCase()}
                 </span>
               </div>
             </div>
             <div className="ml-4">
               <div className="text-sm font-medium text-gray-900">
-                {user.name || "No Name"}
+                {user.name ?? "No Name"}
               </div>
               <div className="text-sm text-gray-500">{user.email}</div>
             </div>
@@ -79,7 +79,7 @@ export function UsersTable({ data }: UsersTableProps) {
       accessorKey: "role",
       header: "Role",
       cell: ({ row }) => {
-        const role = row.getValue("role") as string;
+        const role: string = row.getValue("role");
         return (
           <span
             className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
@@ -129,7 +129,7 @@ export function UsersTable({ data }: UsersTableProps) {
             </Link>
             <button
               onClick={() =>
-                handleDelete(user.id, user.name || user.email || "this user")
+                handleDelete(user.id, user.name ?? user.email ?? "this user")
               }
               disabled={deletingId === user.id}
               className="text-red-600 hover:text-red-900 disabled:cursor-not-allowed disabled:opacity-50"

@@ -4,9 +4,10 @@ import { TRPCError } from "@trpc/server";
 import {
   createTRPCRouter,
   adminProcedure,
-  protectedProcedure,
   tenantProcedure,
 } from "~/server/api/trpc";
+import type { Payment } from "@prisma/client";
+export type ApiPayment = Omit<Payment, "amount"> & { amount: number };
 
 export const tenantRouter = createTRPCRouter({
   // Get current user's tenant profile
@@ -128,10 +129,11 @@ export const tenantRouter = createTRPCRouter({
         user: {
           ...tenant.user,
           payments: tenant.user.payments.map(
-            (payment: { amount: { toNumber: () => number } }) => ({
-              ...payment,
-              amount: payment.amount.toNumber(),
-            }),
+            (payment: { amount: { toNumber: () => number } }) =>
+              ({
+                ...payment,
+                amount: payment.amount.toNumber(),
+              }) as ApiPayment,
           ),
         },
       };

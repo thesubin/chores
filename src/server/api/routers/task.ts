@@ -236,6 +236,7 @@ export const taskRouter = createTRPCRouter({
     .input(createTaskSchema)
     .mutation(async ({ ctx, input }) => {
       const { userIds, dueDate, startDate, ...taskData } = input;
+      console.log(startDate);
       // startDate and dueDate are extracted to exclude them from taskData
       // These fields are used for assignments but not stored in the task itself
 

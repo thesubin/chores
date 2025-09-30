@@ -98,10 +98,10 @@ export function RoomsTable({ data, propertyId }: RoomsTableProps) {
       accessorKey: "description",
       header: "Description",
       cell: ({ row }) => {
-        const description = row.getValue("description") as string | null;
+        const description: string | null = row.getValue("description");
         return (
           <div className="max-w-xs truncate text-sm text-gray-500">
-            {description || "No description"}
+            {description ?? "No description"}
           </div>
         );
       },

@@ -21,12 +21,12 @@ export function UserForm({ initialData, isEditing = false }: UserFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
-    name: initialData?.name || "",
-    email: initialData?.email || "",
+    name: initialData?.name ?? "",
+    email: initialData?.email ?? "",
     password: "",
     confirmPassword: "",
-    role: initialData?.role || "TENANT",
-    phoneNumber: initialData?.phoneNumber || "",
+    role: initialData?.role ?? "TENANT",
+    phoneNumber: initialData?.phoneNumber ?? "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 

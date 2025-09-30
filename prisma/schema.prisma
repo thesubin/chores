@@ -58,6 +58,14 @@ enum RequestStatus {
     CLOSED
 }
 
+// Report type enum
+enum ReportType {
+    TASKS
+    PAYMENTS
+    TENANTS
+    CUSTOM
+}
+
 // User model with role-based authentication
 model User {
     id            String    @id @default(cuid())
@@ -85,6 +93,7 @@ model User {
     assignedTasksBy       TaskAssignment[] @relation("TaskAssignedBy")
     verifiedTasks         TaskCompletion[] @relation("TaskVerifiedBy")
     respondedRequests     TenantRequest[]  @relation("RequestRespondedBy")
+    createdReports        Report[]
 
     @@index([email])
     @@index([role])
@@ -334,6 +343,25 @@ model TaskRecurrence {
 
     @@index([taskId])
     @@index([nextDueDate])
+}
+
+// Administrative reports (definitions only; execution history can be added later)
+model Report {
+    id          String     @id @default(cuid())
+    title       String
+    description String?    @db.Text
+    type        ReportType
+    filters     Json?
+    isActive    Boolean    @default(true)
+
+    createdById String
+    createdAt   DateTime   @default(now())
+    updatedAt   DateTime   @updatedAt
+
+    createdBy   User       @relation(fields: [createdById], references: [id])
+
+    @@index([type])
+    @@index([isActive])
 }
 
 // Necessary for Next auth

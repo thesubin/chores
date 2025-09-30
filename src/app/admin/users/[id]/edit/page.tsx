@@ -6,17 +6,19 @@ import { api } from "~/trpc/server";
 import { UserForm } from "../../_components/user-form";
 
 interface EditUserPageProps {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 export default async function EditUserPage({ params }: EditUserPageProps) {
   // Fetch user data
   let user;
+  const { id } = await params;
   try {
-    user = await api.auth.getUserById({ id: params.id });
+    user = await api.auth.getUserById({ id });
   } catch (error) {
+    console.error(error);
     notFound();
   }
 

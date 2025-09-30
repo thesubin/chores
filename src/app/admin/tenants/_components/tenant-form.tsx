@@ -24,26 +24,7 @@ interface User {
 }
 
 interface TenantFormProps {
-  initialData?: {
-    id: string;
-    userId: string;
-    propertyId: string;
-    roomId?: string | null;
-    monthlyRent: number;
-    rentDueDay: number;
-    depositAmount?: number | null;
-    securityDeposit?: number | null;
-    emergencyContact?: string | null;
-    emergencyPhone?: string | null;
-    moveInDate?: Date | null;
-    leaseStartDate?: Date | null;
-    leaseEndDate?: Date | null;
-    remarks?: string | null;
-    notes?: string | null;
-    user?: User;
-    property?: Property;
-    room?: Room | null;
-  };
+  initialData?: string;
   propertyId?: string;
   roomId?: string;
   userId?: string;
@@ -58,32 +39,33 @@ export function TenantForm({
   isEditing = false,
 }: TenantFormProps) {
   const router = useRouter();
+  const parsedInitialData = initialData ? JSON.parse(initialData) : null;
   const [isLoading, setIsLoading] = useState(false);
   const [selectedPropertyId, setSelectedPropertyId] = useState<string>(
-    initialData?.propertyId || propertyId || "",
+    parsedInitialData?.propertyId ?? propertyId ?? "",
   );
 
   const [formData, setFormData] = useState({
-    userId: initialData?.userId || userId || "",
-    propertyId: initialData?.propertyId || propertyId || "",
-    roomId: initialData?.roomId || roomId || "",
-    monthlyRent: initialData?.monthlyRent?.toString() || "0",
-    rentDueDay: initialData?.rentDueDay?.toString() || "1",
-    depositAmount: initialData?.depositAmount?.toString() || "",
-    securityDeposit: initialData?.securityDeposit?.toString() || "",
-    emergencyContact: initialData?.emergencyContact || "",
-    emergencyPhone: initialData?.emergencyPhone || "",
-    moveInDate: initialData?.moveInDate
-      ? new Date(initialData.moveInDate).toISOString().split("T")[0]
+    userId: parsedInitialData?.userId ?? userId ?? "",
+    propertyId: parsedInitialData?.propertyId ?? propertyId ?? "",
+    roomId: parsedInitialData?.roomId ?? roomId ?? "",
+    monthlyRent: parsedInitialData?.monthlyRent?.toString() ?? "0",
+    rentDueDay: parsedInitialData?.rentDueDay?.toString() ?? "1",
+    depositAmount: parsedInitialData?.depositAmount?.toString() ?? "",
+    securityDeposit: parsedInitialData?.securityDeposit?.toString() ?? "",
+    emergencyContact: parsedInitialData?.emergencyContact ?? "",
+    emergencyPhone: parsedInitialData?.emergencyPhone ?? "",
+    moveInDate: parsedInitialData?.moveInDate
+      ? new Date(parsedInitialData.moveInDate).toISOString().split("T")[0]
       : "",
-    leaseStartDate: initialData?.leaseStartDate
-      ? new Date(initialData.leaseStartDate).toISOString().split("T")[0]
+    leaseStartDate: parsedInitialData?.leaseStartDate
+      ? new Date(parsedInitialData.leaseStartDate).toISOString().split("T")[0]
       : "",
-    leaseEndDate: initialData?.leaseEndDate
-      ? new Date(initialData.leaseEndDate).toISOString().split("T")[0]
+    leaseEndDate: parsedInitialData?.leaseEndDate
+      ? new Date(parsedInitialData.leaseEndDate).toISOString().split("T")[0]
       : "",
-    remarks: initialData?.remarks || "",
-    notes: initialData?.notes || "",
+    remarks: parsedInitialData?.remarks ?? "",
+    notes: parsedInitialData?.notes ?? "",
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -134,8 +116,8 @@ export function TenantForm({
   const updateTenant = api.tenant.update.useMutation({
     onSuccess: () => {
       toast.success("Tenant profile updated successfully");
-      if (initialData?.id) {
-        router.push(`/admin/tenants/${initialData.id}`);
+      if (parsedInitialData?.id) {
+        router.push(`/admin/tenants/${parsedInitialData.id}`);
       } else {
         router.push("/admin/tenants");
       }
@@ -233,11 +215,11 @@ export function TenantForm({
     setIsLoading(true);
 
     try {
-      if (isEditing && initialData?.id) {
+      if (isEditing && parsedInitialData?.id) {
         await updateTenant.mutateAsync({
-          id: initialData.id,
-          propertyId: formData.propertyId || undefined,
-          roomId: formData.roomId || undefined,
+          id: parsedInitialData.id,
+          propertyId: formData.propertyId ?? undefined,
+          roomId: formData.roomId ?? undefined,
           monthlyRent: parseFloat(formData.monthlyRent),
           rentDueDay: parseInt(formData.rentDueDay),
           depositAmount: formData.depositAmount
@@ -246,8 +228,8 @@ export function TenantForm({
           securityDeposit: formData.securityDeposit
             ? parseFloat(formData.securityDeposit)
             : undefined,
-          emergencyContact: formData.emergencyContact || undefined,
-          emergencyPhone: formData.emergencyPhone || undefined,
+          emergencyContact: formData.emergencyContact ?? undefined,
+          emergencyPhone: formData.emergencyPhone ?? undefined,
           moveInDate: formData.moveInDate
             ? new Date(formData.moveInDate)
             : undefined,
@@ -257,14 +239,14 @@ export function TenantForm({
           leaseEndDate: formData.leaseEndDate
             ? new Date(formData.leaseEndDate)
             : undefined,
-          remarks: formData.remarks || undefined,
-          notes: formData.notes || undefined,
+          remarks: formData.remarks ?? undefined,
+          notes: formData.notes ?? undefined,
         });
       } else {
         await createTenant.mutateAsync({
           userId: formData.userId,
           propertyId: formData.propertyId,
-          roomId: formData.roomId || undefined,
+          roomId: formData.roomId ?? undefined,
           monthlyRent: parseFloat(formData.monthlyRent),
           rentDueDay: parseInt(formData.rentDueDay),
           depositAmount: formData.depositAmount
@@ -273,8 +255,8 @@ export function TenantForm({
           securityDeposit: formData.securityDeposit
             ? parseFloat(formData.securityDeposit)
             : undefined,
-          emergencyContact: formData.emergencyContact || undefined,
-          emergencyPhone: formData.emergencyPhone || undefined,
+          emergencyContact: formData.emergencyContact ?? undefined,
+          emergencyPhone: formData.emergencyPhone ?? undefined,
           moveInDate: formData.moveInDate
             ? new Date(formData.moveInDate)
             : undefined,
@@ -284,8 +266,8 @@ export function TenantForm({
           leaseEndDate: formData.leaseEndDate
             ? new Date(formData.leaseEndDate)
             : undefined,
-          remarks: formData.remarks || undefined,
-          notes: formData.notes || undefined,
+          remarks: formData.remarks ?? undefined,
+          notes: formData.notes ?? undefined,
         });
       }
     } catch (error) {
@@ -295,8 +277,8 @@ export function TenantForm({
   };
 
   const handleCancel = () => {
-    if (initialData?.id) {
-      router.push(`/admin/tenants/${initialData.id}`);
+    if (parsedInitialData?.id) {
+      router.push(`/admin/tenants/${parsedInitialData.id}`);
     } else {
       router.push("/admin/tenants");
     }
@@ -328,12 +310,24 @@ export function TenantForm({
             >
               <option value="">Select a tenant</option>
               {parsedUsers
-                .filter((user: User) => !user.tenantProfile) // Only show users without tenant profiles
-                .map((user: User) => (
-                  <option key={user.id} value={user.id}>
-                    {user.name || user.email || user.id}
-                  </option>
-                ))}
+                .filter(
+                  (
+                    user: User & {
+                      tenantProfile: { property: Property; room: Room };
+                    },
+                  ) => !user.tenantProfile,
+                ) // Only show users without tenant profiles
+                .map(
+                  (
+                    user: User & {
+                      tenantProfile: { property: Property; room: Room };
+                    },
+                  ) => (
+                    <option key={user.id} value={user.id}>
+                      {user.name ?? user.email ?? user.id}
+                    </option>
+                  ),
+                )}
             </select>
             {errors.userId && (
               <p className="mt-1 text-sm text-red-600">{errors.userId}</p>

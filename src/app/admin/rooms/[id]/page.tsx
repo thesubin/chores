@@ -12,9 +12,9 @@ import { api } from "~/trpc/server";
 import { DeleteRoomButton } from "../_components/delete-room-button";
 
 interface RoomDetailsPageProps {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 export default async function RoomDetailsPage({
@@ -22,9 +22,11 @@ export default async function RoomDetailsPage({
 }: RoomDetailsPageProps) {
   // Fetch room data
   let room;
+  const { id } = await params;
   try {
-    room = await api.room.getById({ id: params.id });
+    room = await api.room.getById({ id });
   } catch (error) {
+    console.error(error);
     notFound();
   }
 

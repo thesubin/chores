@@ -15,16 +15,17 @@ import { TaskAssignmentList } from "../_components/task-assignment-list";
 import { TaskCompletionList } from "../_components/task-completion-list";
 
 interface TaskDetailsPageProps {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 export default async function TaskDetailsPage({
   params,
 }: TaskDetailsPageProps) {
   // Fetch task data
-  const task = await api.task.getById({ id: params.id }).catch(() => {
+  const { id } = await params;
+  const task = await api.task.getById({ id }).catch(() => {
     notFound();
     // This return is just to satisfy TypeScript, notFound() throws an error
     return null;

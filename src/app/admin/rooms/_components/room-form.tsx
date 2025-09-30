@@ -12,12 +12,7 @@ interface Property {
 }
 
 interface RoomFormProps {
-  initialData?: {
-    id: string;
-    name: string;
-    propertyId: string;
-    description?: string | null;
-  };
+  initialData?: string;
   propertyId?: string;
   isEditing?: boolean;
 }
@@ -29,10 +24,11 @@ export function RoomForm({
 }: RoomFormProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const parsedInitialData = initialData ? JSON.parse(initialData) : null;
   const [formData, setFormData] = useState({
-    name: initialData?.name || "",
-    propertyId: initialData?.propertyId || propertyId || "",
-    description: initialData?.description || "",
+    name: parsedInitialData?.name ?? "",
+    propertyId: parsedInitialData?.propertyId ?? propertyId ?? "",
+    description: parsedInitialData?.description ?? "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -67,8 +63,8 @@ export function RoomForm({
   const updateRoom = api.room.update.useMutation({
     onSuccess: () => {
       toast.success("Room updated successfully");
-      if (initialData?.id) {
-        router.push(`/admin/rooms/${initialData.id}`);
+      if (parsedInitialData?.id) {
+        router.push(`/admin/rooms/${parsedInitialData.id}`);
       } else if (formData.propertyId) {
         router.push(`/admin/properties/${formData.propertyId}`);
       } else {
@@ -122,17 +118,17 @@ export function RoomForm({
     setIsLoading(true);
 
     try {
-      if (isEditing && initialData?.id) {
+      if (isEditing && parsedInitialData?.id) {
         await updateRoom.mutateAsync({
-          id: initialData.id,
+          id: parsedInitialData.id,
           name: formData.name,
-          description: formData.description || null,
+          description: formData.description ?? null,
         });
       } else {
         await createRoom.mutateAsync({
           name: formData.name,
           propertyId: formData.propertyId,
-          description: formData.description || undefined,
+          description: formData.description ?? undefined,
         });
       }
     } catch (error) {
@@ -142,8 +138,8 @@ export function RoomForm({
   };
 
   const handleCancel = () => {
-    if (initialData?.id) {
-      router.push(`/admin/rooms/${initialData.id}`);
+    if (parsedInitialData?.id) {
+      router.push(`/admin/rooms/${parsedInitialData.id}`);
     } else if (formData.propertyId) {
       router.push(`/admin/properties/${formData.propertyId}`);
     } else {

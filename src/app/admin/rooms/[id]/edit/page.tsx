@@ -6,17 +6,19 @@ import { api } from "~/trpc/server";
 import { RoomForm } from "../../_components/room-form";
 
 interface EditRoomPageProps {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 export default async function EditRoomPage({ params }: EditRoomPageProps) {
   // Fetch room data
   let room;
+  const { id } = await params;
   try {
-    room = await api.room.getById({ id: params.id });
+    room = await api.room.getById({ id });
   } catch (error) {
+    console.error(error);
     notFound();
   }
 
@@ -27,7 +29,7 @@ export default async function EditRoomPage({ params }: EditRoomPageProps) {
         <div className="sm:flex-auto">
           <div className="flex items-center">
             <Link
-              href={`/admin/rooms/${params.id}`}
+              href={`/admin/rooms/${id}`}
               className="mr-4 text-gray-400 hover:text-gray-600"
             >
               <ArrowLeftIcon className="h-5 w-5" />
@@ -45,7 +47,7 @@ export default async function EditRoomPage({ params }: EditRoomPageProps) {
       {/* Form */}
       <div className="rounded-lg bg-white shadow">
         <div className="px-4 py-5 sm:p-6">
-          <RoomForm initialData={room} isEditing />
+          <RoomForm initialData={JSON.stringify(room)} isEditing />
         </div>
       </div>
     </div>

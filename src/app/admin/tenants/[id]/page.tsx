@@ -4,25 +4,24 @@ import {
   ArrowLeftIcon,
   PencilIcon,
   UserIcon,
-  HomeIcon,
   CreditCardIcon,
   DocumentTextIcon,
 } from "@heroicons/react/24/outline";
-
+import { type ApiPayment } from "~/server/api/routers/tenant";
 import { api } from "~/trpc/server";
 import { DeleteTenantButton } from "../_components/delete-tenant-button";
 
 interface TenantDetailsPageProps {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
-
 export default async function TenantDetailsPage({
   params,
 }: TenantDetailsPageProps) {
   // Fetch tenant data
-  const tenant = await api.tenant.getById({ id: params.id }).catch(() => {
+  const { id } = await params;
+  const tenant = await api.tenant.getById({ id }).catch(() => {
     notFound();
     // This return is just to satisfy TypeScript, notFound() throws an error
     return null;
@@ -244,7 +243,7 @@ export default async function TenantDetailsPage({
                     Tenant Remarks
                   </h4>
                   <p className="mt-2 text-sm text-gray-500">
-                    {tenant?.remarks || "No remarks"}
+                    {tenant?.remarks ?? "No remarks"}
                   </p>
                 </div>
                 <div className="rounded-lg border border-gray-200 p-4">
@@ -252,7 +251,7 @@ export default async function TenantDetailsPage({
                     Admin Notes
                   </h4>
                   <p className="mt-2 text-sm text-gray-500">
-                    {tenant?.notes || "No notes"}
+                    {tenant?.notes ?? "No notes"}
                   </p>
                 </div>
               </div>
@@ -326,11 +325,12 @@ export default async function TenantDetailsPage({
                       </th>
                     </tr>
                   </thead>
+
                   <tbody className="divide-y divide-gray-200">
-                    {tenant.user.payments.map((payment: any) => (
+                    {tenant.user.payments.map((payment: ApiPayment) => (
                       <tr key={payment.id}>
                         <td className="px-6 py-4 text-sm whitespace-nowrap text-gray-900">
-                          {formatDate(payment.paidDate || payment.dueDate)}
+                          {formatDate(payment.paidDate ?? payment.dueDate)}
                         </td>
                         <td className="px-6 py-4 text-sm whitespace-nowrap text-gray-900">
                           {formatCurrency(payment.amount)}
@@ -349,10 +349,10 @@ export default async function TenantDetailsPage({
                           </span>
                         </td>
                         <td className="px-6 py-4 text-sm whitespace-nowrap text-gray-900">
-                          {payment.paymentMethod || "N/A"}
+                          {payment.paymentMethod ?? "N/A"}
                         </td>
                         <td className="px-6 py-4 text-sm whitespace-nowrap text-gray-900">
-                          {payment.reference || "N/A"}
+                          {payment.reference ?? "N/A"}
                         </td>
                       </tr>
                     ))}

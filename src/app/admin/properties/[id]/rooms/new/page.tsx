@@ -6,16 +6,18 @@ import { api } from "~/trpc/server";
 import { RoomForm } from "../../../../rooms/_components/room-form";
 
 interface NewPropertyRoomPageProps {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 export default async function NewPropertyRoomPage({
   params,
 }: NewPropertyRoomPageProps) {
+  const { id } = await params;
+
   // Fetch property data to verify it exists and get name
-  const property = await api.property.getById({ id: params.id }).catch(() => {
+  const property = await api.property.getById({ id }).catch(() => {
     notFound();
     // This return is just to satisfy TypeScript, notFound() throws an error
     return null;
@@ -28,7 +30,7 @@ export default async function NewPropertyRoomPage({
         <div className="sm:flex-auto">
           <div className="flex items-center">
             <Link
-              href={`/admin/properties/${params.id}`}
+              href={`/admin/properties/${id}`}
               className="mr-4 text-gray-400 hover:text-gray-600"
             >
               <ArrowLeftIcon className="h-5 w-5" />
@@ -48,7 +50,7 @@ export default async function NewPropertyRoomPage({
       {/* Form */}
       <div className="rounded-lg bg-white shadow">
         <div className="px-4 py-5 sm:p-6">
-          <RoomForm propertyId={params.id} />
+          <RoomForm propertyId={id} />
         </div>
       </div>
     </div>

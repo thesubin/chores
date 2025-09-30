@@ -8,23 +8,24 @@ import { TenantsTable } from "../../../_components/tenants-table";
 import { TenantsTableSkeleton } from "../../../_components/tenants-table-skeleton";
 
 interface PropertyTenantsPageProps {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 export default async function PropertyTenantsPage({
   params,
 }: PropertyTenantsPageProps) {
   // Fetch property data
-  const property = await api.property.getById({ id: params.id }).catch(() => {
+  const { id } = await params;
+  const property = await api.property.getById({ id }).catch(() => {
     notFound();
     // This return is just to satisfy TypeScript, notFound() throws an error
     return null;
   });
 
   // Filter tenants for this property
-  const tenants = property?.tenants || [];
+  const tenants = property?.tenants ?? [];
 
   return (
     <div className="space-y-6">
@@ -33,7 +34,7 @@ export default async function PropertyTenantsPage({
         <div className="sm:flex-auto">
           <div className="flex items-center">
             <Link
-              href={`/admin/properties/${params.id}`}
+              href={`/admin/properties/${id}`}
               className="mr-4 text-gray-400 hover:text-gray-600"
             >
               <ArrowLeftIcon className="h-5 w-5" />
@@ -50,7 +51,7 @@ export default async function PropertyTenantsPage({
         </div>
         <div className="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
           <Link
-            href={`/admin/tenants/new?propertyId=${params.id}`}
+            href={`/admin/tenants/new?propertyId=${id}`}
             className="block rounded-md bg-blue-600 px-3 py-2 text-center text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
           >
             <PlusIcon className="mr-2 inline h-4 w-4" />
@@ -63,10 +64,7 @@ export default async function PropertyTenantsPage({
       <div className="rounded-lg bg-white shadow">
         <div className="px-4 py-5 sm:p-6">
           <Suspense fallback={<TenantsTableSkeleton />}>
-            <TenantsTable
-              data={JSON.stringify(tenants)}
-              propertyId={params.id}
-            />
+            <TenantsTable data={JSON.stringify(tenants)} propertyId={id} />
           </Suspense>
         </div>
       </div>

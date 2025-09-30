@@ -6,9 +6,9 @@ import { api } from "~/trpc/server";
 import { PropertyForm } from "../../_components/property-form";
 
 interface EditPropertyPageProps {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 export default async function EditPropertyPage({
@@ -16,9 +16,11 @@ export default async function EditPropertyPage({
 }: EditPropertyPageProps) {
   // Fetch property data
   let property;
+  const { id } = await params;
   try {
-    property = await api.property.getById({ id: params.id });
+    property = await api.property.getById({ id });
   } catch (error) {
+    console.error(error);
     notFound();
   }
 

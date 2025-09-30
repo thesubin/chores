@@ -6,9 +6,9 @@ import { api } from "~/trpc/server";
 import { DeleteUserButton } from "../_components/delete-user-button";
 
 interface UserDetailsPageProps {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 export default async function UserDetailsPage({
@@ -16,9 +16,11 @@ export default async function UserDetailsPage({
 }: UserDetailsPageProps) {
   // Fetch user data
   let user;
+  const { id } = await params;
   try {
-    user = await api.auth.getUserById({ id: params.id });
+    user = await api.auth.getUserById({ id });
   } catch (error) {
+    console.error(error);
     notFound();
   }
 
@@ -52,7 +54,7 @@ export default async function UserDetailsPage({
           </Link>
           <DeleteUserButton
             userId={user.id}
-            userName={user.name || user.email || "this user"}
+            userName={user.name ?? user.email ?? "this user"}
           />
         </div>
       </div>
@@ -67,15 +69,15 @@ export default async function UserDetailsPage({
                 <div className="h-20 w-20 flex-shrink-0">
                   <div className="flex h-full w-full items-center justify-center rounded-full bg-gray-200">
                     <span className="text-2xl font-medium text-gray-600">
-                      {user.name?.[0]?.toUpperCase() ||
-                        user.email?.[0]?.toUpperCase() ||
+                      {user.name?.[0]?.toUpperCase() ??
+                        user.email?.[0]?.toUpperCase() ??
                         "?"}
                     </span>
                   </div>
                 </div>
                 <div className="ml-4">
                   <h2 className="text-xl font-bold text-gray-900">
-                    {user.name || "No Name"}
+                    {user.name ?? "No Name"}
                   </h2>
                   <p className="text-sm text-gray-500">{user.email}</p>
                   <div className="mt-1">
@@ -102,13 +104,13 @@ export default async function UserDetailsPage({
                 <div className="flex justify-between py-3">
                   <dt className="text-sm font-medium text-gray-500">Email</dt>
                   <dd className="text-sm text-gray-900">
-                    {user.email || "Not provided"}
+                    {user.email ?? "Not provided"}
                   </dd>
                 </div>
                 <div className="flex justify-between py-3">
                   <dt className="text-sm font-medium text-gray-500">Phone</dt>
                   <dd className="text-sm text-gray-900">
-                    {user.phoneNumber || "Not provided"}
+                    {user.phoneNumber ?? "Not provided"}
                   </dd>
                 </div>
               </dl>
@@ -153,13 +155,13 @@ export default async function UserDetailsPage({
                       Property
                     </dt>
                     <dd className="mt-1 text-sm text-gray-900">
-                      {user.tenantProfile.property?.name || "Not assigned"}
+                      {user.tenantProfile.property?.name ?? "Not assigned"}
                     </dd>
                   </div>
                   <div>
                     <dt className="text-sm font-medium text-gray-500">Room</dt>
                     <dd className="mt-1 text-sm text-gray-900">
-                      {user.tenantProfile.room?.name || "Not assigned"}
+                      {user.tenantProfile.room?.name ?? "Not assigned"}
                     </dd>
                   </div>
                   <div>
@@ -167,7 +169,7 @@ export default async function UserDetailsPage({
                       Monthly Rent
                     </dt>
                     <dd className="mt-1 text-sm text-gray-900">
-                      ${user.tenantProfile.monthlyRent}
+                      ${user.tenantProfile.monthlyRent?.toNumber() ?? 0}
                     </dd>
                   </div>
                   <div>

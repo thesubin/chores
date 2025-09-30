@@ -4,17 +4,17 @@ import { ArrowLeftIcon } from "@heroicons/react/24/outline";
 import { TenantForm } from "../_components/tenant-form";
 
 interface NewTenantPageProps {
-  searchParams: {
+  searchParams: Promise<{
     propertyId?: string;
     roomId?: string;
     userId?: string;
-  };
+  }>;
 }
 
 export default async function NewTenantPage({
   searchParams,
 }: NewTenantPageProps) {
-  const { propertyId, roomId, userId } = searchParams;
+  const { propertyId, roomId, userId } = await searchParams;
 
   return (
     <div className="space-y-6">

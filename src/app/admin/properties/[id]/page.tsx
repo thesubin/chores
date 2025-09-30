@@ -12,19 +12,21 @@ import { api } from "~/trpc/server";
 import { DeletePropertyButton } from "../_components/delete-property-button";
 
 interface PropertyDetailsPageProps {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 export default async function PropertyDetailsPage({
   params,
 }: PropertyDetailsPageProps) {
   // Fetch property data
+  const { id } = await params;
   let property;
   try {
-    property = await api.property.getById({ id: params.id });
+    property = await api.property.getById({ id });
   } catch (error) {
+    console.error(error);
     notFound();
   }
 
