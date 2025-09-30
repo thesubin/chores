@@ -94,6 +94,7 @@ model User {
     verifiedTasks         TaskCompletion[] @relation("TaskVerifiedBy")
     respondedRequests     TenantRequest[]  @relation("RequestRespondedBy")
     createdReports        Report[]
+    taskUserOrders        TaskUserOrder[]
 
     @@index([email])
     @@index([role])
@@ -206,6 +207,7 @@ model Task {
     assignments TaskAssignment[]
     completions TaskCompletion[]
     recurrences TaskRecurrence[]
+    userOrder   TaskUserOrder[]
 
     @@index([propertyId])
     @@index([roomId])
@@ -343,6 +345,26 @@ model TaskRecurrence {
 
     @@index([taskId])
     @@index([nextDueDate])
+}
+
+// Task user order for rotation management
+model TaskUserOrder {
+    id        String   @id @default(cuid())
+    taskId    String
+    userId    String
+    order     Int      // Position in rotation (0-based)
+    
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+    
+    // Relations
+    task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+    user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@unique([taskId, userId])
+    @@index([taskId])
+    @@index([userId])
+    @@index([order])
 }
 
 // Administrative reports (definitions only; execution history can be added later)

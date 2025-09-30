@@ -10,9 +10,12 @@ import {
 } from "@heroicons/react/24/outline";
 
 import { api } from "~/trpc/server";
-import { DeleteTaskButton } from "../_components/delete-task-button";
-import { TaskAssignmentList } from "../_components/task-assignment-list";
-import { TaskCompletionList } from "../_components/task-completion-list";
+import {
+  DeleteTaskButton,
+  TaskAssignmentList,
+  TaskCompletionList,
+  RotationEditor,
+} from "../_components";
 
 interface TaskDetailsPageProps {
   params: Promise<{
@@ -330,6 +333,20 @@ export default async function TaskDetailsPage({
           </div>
         </div>
       </div>
+
+      {/* Rotation Order (if rotation is enabled) */}
+      {((task?.useRotation ?? false) || (task?.assignToAll ?? false)) && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold text-gray-900">Rotation Order</h2>
+          </div>
+          <div className="overflow-hidden rounded-lg bg-white shadow">
+            <div className="px-4 py-5 sm:p-6">
+              <RotationEditor taskId={id} />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Completed Assignments */}
       <div className="space-y-4">

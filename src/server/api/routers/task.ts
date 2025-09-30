@@ -23,6 +23,7 @@ const createTaskSchema = z.object({
   useRotation: z.boolean().default(false),
   maxAssignments: z.number().int().positive().optional(),
   userIds: z.array(z.string()).optional(),
+  userOrder: z.array(z.string()).optional(), // For assignToAll tasks - custom rotation order
   startDate: z.date(),
   dueDate: z.date(),
 });
@@ -47,6 +48,11 @@ const updateTaskSchema = z.object({
 const updateTaskAssignmentsSchema = z.object({
   taskId: z.string(),
   userIds: z.array(z.string()),
+});
+
+const reorderRotationSchema = z.object({
+  taskId: z.string(),
+  userIds: z.array(z.string()).min(1), // full desired order
 });
 
 export const taskRouter = createTRPCRouter({
@@ -189,6 +195,164 @@ export const taskRouter = createTRPCRouter({
     return taskAssignments;
   }),
 
+  // Get my upcoming tasks (tenant) - tasks that are not currently assigned to me
+  // but I'm eligible for via assign-to-all or rotation, with their next due date
+  getMyUpcomingTasks: tenantProcedure.query(async ({ ctx }) => {
+    // Find tenant profiles for the current user to match property/room
+    const profiles = await ctx.db.tenantProfile.findMany({
+      where: { userId: ctx.session.user.id },
+      select: { propertyId: true, roomId: true },
+    });
+
+    // If no tenant profile, nothing to show
+    if (profiles.length === 0) return [] as const;
+
+    // Build OR clauses for assignToAll tasks matching tenant locations
+    const locationClauses = profiles.map((p) => ({
+      propertyId: p.propertyId,
+      ...(p.roomId ? { roomId: p.roomId } : {}),
+    }));
+
+    const tasks = await ctx.db.task.findMany({
+      where: {
+        isActive: true,
+        frequency: { not: "ONCE" },
+        OR: [
+          // Assign to all tenants at the tenant's property/room
+          {
+            assignToAll: true,
+            OR: locationClauses,
+          },
+          // Rotation tasks that include this user in rotation history
+          {
+            useRotation: true,
+            assignments: { some: { userId: ctx.session.user.id } },
+          },
+        ],
+      },
+      include: {
+        property: true,
+        room: true,
+        recurrences: {
+          where: { isActive: true },
+          orderBy: { nextDueDate: "asc" },
+          take: 1,
+        },
+        assignments: {
+          where: { status: { in: ["PENDING", "IN_PROGRESS"] } },
+          select: { userId: true, status: true, dueDate: true },
+          orderBy: { dueDate: "asc" },
+          take: 1,
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    // Helpers for ET time and cycle math
+    const nowET = new Date(
+      new Date().toLocaleString("en-US", { timeZone: "America/Toronto" }),
+    );
+    const dayDiff = (from: Date, to: Date) => {
+      const ms = to.getTime() - from.getTime();
+      return Math.max(0, Math.ceil(ms / (1000 * 60 * 60 * 24)));
+    };
+    const cycleDaysFor = (frequency: string, intervalDays?: number | null) => {
+      switch (frequency) {
+        case "DAILY":
+          return 1;
+        case "WEEKLY":
+          return 7;
+        case "MONTHLY":
+          return 30; // approximation for display
+        case "CUSTOM":
+          return intervalDays && intervalDays > 0 ? intervalDays : 7;
+        default:
+          return 7;
+      }
+    };
+
+    // Compute daysUntilMyTurn where possible
+    const upcoming = [] as Array<{
+      id: string;
+      title: string;
+      description: string | null;
+      priority: number;
+      property: { id: string; name: string };
+      room: { id: string; name: string } | null;
+      nextDueDate: Date | null;
+      currentlyAssignedToSomeoneElse: boolean;
+      daysUntilMyTurn: number | null;
+    }>;
+
+    for (const t of tasks) {
+      // Skip if already assigned to me
+      if (
+        t.assignments.length > 0 &&
+        t.assignments[0]?.userId === ctx.session.user.id
+      ) {
+        continue;
+      }
+
+      // Build eligible users list depending on rotation strategy
+      let eligibleUsers: { userId: string }[] = [];
+      if (t.assignToAll || t.useRotation) {
+        eligibleUsers = await getTaskRotationOrder(ctx.db, t.id, {
+          assignToAll: t.assignToAll,
+          propertyId: t.propertyId,
+          roomId: t.roomId,
+        });
+      }
+
+      let daysUntilMyTurn: number | null = null;
+      const myIndex = eligibleUsers.findIndex(
+        (u) => u.userId === ctx.session.user.id,
+      );
+      if (myIndex !== -1) {
+        const currentUserId = t.assignments[0]?.userId ?? null;
+        const currentIndex = currentUserId
+          ? eligibleUsers.findIndex((u) => u.userId === currentUserId)
+          : -1;
+
+        const cycleDays = cycleDaysFor(t.frequency, t.intervalDays);
+        const nextDueRaw = t.recurrences[0]?.nextDueDate ?? null;
+        const nextDueET = nextDueRaw
+          ? new Date(
+              new Date(nextDueRaw).toLocaleString("en-US", {
+                timeZone: "America/Toronto",
+              }),
+            )
+          : null;
+
+        const stepsAhead =
+          currentIndex === -1
+            ? myIndex
+            : (myIndex - currentIndex + eligibleUsers.length) %
+              eligibleUsers.length;
+
+        const baseDays = nextDueET ? dayDiff(nowET, nextDueET) : 0;
+        daysUntilMyTurn = baseDays + stepsAhead * cycleDays;
+      }
+
+      if (daysUntilMyTurn !== null && daysUntilMyTurn <= 7) {
+        upcoming.push({
+          id: t.id,
+          title: t.title,
+          description: t.description,
+          priority: t.priority,
+          property: t.property,
+          room: t.room,
+          nextDueDate: t.recurrences[0]?.nextDueDate ?? null,
+          currentlyAssignedToSomeoneElse:
+            t.assignments.length > 0 &&
+            t.assignments[0]?.userId !== ctx.session.user.id,
+          daysUntilMyTurn,
+        });
+      }
+    }
+
+    return upcoming;
+  }),
+
   // Get task by ID
   getById: protectedProcedure
     .input(z.object({ id: z.string() }))
@@ -235,15 +399,44 @@ export const taskRouter = createTRPCRouter({
   create: adminProcedure
     .input(createTaskSchema)
     .mutation(async ({ ctx, input }) => {
-      const { userIds, dueDate, startDate, ...taskData } = input;
+      const { userIds, userOrder, dueDate, startDate, ...taskData } = input;
       console.log(startDate);
       // startDate and dueDate are extracted to exclude them from taskData
       // These fields are used for assignments but not stored in the task itself
+
+      // Sanitize optional roomId: treat empty strings as undefined
+      const sanitizedRoomId =
+        taskData.roomId && taskData.roomId.trim().length > 0
+          ? taskData.roomId
+          : undefined;
+
+      // If a roomId is provided, validate it exists and belongs to the same property
+      if (sanitizedRoomId) {
+        const room = await ctx.db.room.findUnique({
+          where: { id: sanitizedRoomId },
+          select: { id: true, propertyId: true },
+        });
+
+        if (!room) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Invalid roomId provided.",
+          });
+        }
+
+        if (room.propertyId !== taskData.propertyId) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "roomId does not belong to the specified property.",
+          });
+        }
+      }
 
       // Create the task
       const task = await ctx.db.task.create({
         data: {
           ...taskData,
+          roomId: sanitizedRoomId,
           createdById: ctx.session.user.id,
         },
       });
@@ -261,24 +454,18 @@ export const taskRouter = createTRPCRouter({
             },
           });
 
-          // For rotation tasks, we also need to store the original order of users
-          // Create placeholder assignments with status=SKIPPED for the remaining users
-          // This will help maintain the rotation order
-          if (userIds.length > 1) {
-            await Promise.all(
-              userIds.slice(1).map(async (userId) => {
-                await ctx.db.taskAssignment.create({
-                  data: {
-                    taskId: task.id,
-                    userId: userId ?? "",
-                    assignedById: ctx.session.user.id,
-                    dueDate,
-                    status: "SKIPPED", // Mark as skipped so they don't show up as active assignments
-                  },
-                });
-              }),
-            );
-          }
+          // Create TaskUserOrder records for rotation order
+          await Promise.all(
+            userIds.map(async (userId, index) => {
+              await ctx.db.taskUserOrder.create({
+                data: {
+                  taskId: task.id,
+                  userId: userId ?? "",
+                  order: index,
+                },
+              });
+            }),
+          );
         } else {
           // For non-rotation tasks, assign to all selected users
           await Promise.all(
@@ -296,7 +483,7 @@ export const taskRouter = createTRPCRouter({
         }
       } else if (taskData.assignToAll) {
         // Assign to all tenants of the property
-        const tenant = await ctx.db.tenantProfile.findFirst({
+        const tenants = await ctx.db.tenantProfile.findMany({
           where: {
             propertyId: taskData.propertyId,
             ...(taskData.roomId ? { roomId: taskData.roomId } : {}),
@@ -305,15 +492,35 @@ export const taskRouter = createTRPCRouter({
           orderBy: { createdAt: "asc" },
         });
 
-        if (tenant) {
+        if (tenants.length > 0) {
+          // Use custom order if provided, otherwise use tenant creation order
+          const orderedUserIds =
+            userOrder && userOrder.length > 0
+              ? userOrder
+              : tenants.map((t) => t.userId);
+
+          // Assign to the first user in the order
           await ctx.db.taskAssignment.create({
             data: {
               taskId: task.id,
-              userId: tenant.userId,
+              userId: orderedUserIds[0]!,
               assignedById: ctx.session.user.id,
               dueDate,
             },
           });
+
+          // Create TaskUserOrder records with the specified order
+          await Promise.all(
+            orderedUserIds.map(async (userId, index) => {
+              await ctx.db.taskUserOrder.create({
+                data: {
+                  taskId: task.id,
+                  userId,
+                  order: index,
+                },
+              });
+            }),
+          );
         }
       }
 
@@ -398,8 +605,19 @@ export const taskRouter = createTRPCRouter({
             },
           });
 
-          // No need to modify SKIPPED or COMPLETED assignments
-          // as they're already in the correct state
+          // Create TaskUserOrder records for all users in the task
+          const allUserIds = task.assignments.map((a) => a.userId);
+          await Promise.all(
+            allUserIds.map(async (userId, index) => {
+              await ctx.db.taskUserOrder.create({
+                data: {
+                  taskId: id,
+                  userId,
+                  order: index,
+                },
+              });
+            }),
+          );
         }
       }
 
@@ -421,6 +639,11 @@ export const taskRouter = createTRPCRouter({
             }),
           );
         }
+
+        // Clean up TaskUserOrder records when turning off rotation
+        await ctx.db.taskUserOrder.deleteMany({
+          where: { taskId: id },
+        });
       }
 
       return task;
@@ -460,9 +683,15 @@ export const taskRouter = createTRPCRouter({
 
       // Start a transaction
       await ctx.db.$transaction(async (tx) => {
-        // Remove assignments for users no longer assigned
+        // Remove assignments and user order for users no longer assigned
         if (userIdsToRemove.length > 0) {
           await tx.taskAssignment.deleteMany({
+            where: {
+              taskId,
+              userId: { in: userIdsToRemove },
+            },
+          });
+          await tx.taskUserOrder.deleteMany({
             where: {
               taskId,
               userId: { in: userIdsToRemove },
@@ -477,7 +706,7 @@ export const taskRouter = createTRPCRouter({
             // For rotation tasks, we need to:
             // 1. Find any active assignments (PENDING or IN_PROGRESS)
             // 2. If none exist, assign to the first user
-            // 3. Create SKIPPED assignments for the rest to maintain rotation order
+            // 3. Create TaskUserOrder records for rotation order
 
             // First, check if there are any active assignments
             const activeAssignments = await tx.taskAssignment.findMany({
@@ -500,26 +729,21 @@ export const taskRouter = createTRPCRouter({
                     dueDate: new Date(), // Default to today
                   },
                 });
-
-                // Create SKIPPED assignments for the rest to maintain rotation order
-                if (userIdsToAdd.length > 1) {
-                  await Promise.all(
-                    userIdsToAdd.slice(1).map(async (userId) => {
-                      await tx.taskAssignment.create({
-                        data: {
-                          taskId,
-                          userId,
-                          assignedById: ctx.session.user.id,
-                          dueDate: new Date(),
-                          status: "SKIPPED", // Mark as skipped
-                        },
-                      });
-                    }),
-                  );
-                }
               }
             }
-            // Otherwise, keep existing assignments (rotation will happen when tasks are completed)
+
+            // Create TaskUserOrder records for all new users
+            await Promise.all(
+              userIdsToAdd.map(async (userId, index) => {
+                await tx.taskUserOrder.create({
+                  data: {
+                    taskId,
+                    userId,
+                    order: index,
+                  },
+                });
+              }),
+            );
           } else {
             // For non-rotation tasks, assign to all selected users
             await Promise.all(
@@ -541,6 +765,153 @@ export const taskRouter = createTRPCRouter({
       return { success: true };
     }),
 
+  // Reorder rotation for a task (admin)
+  reorderRotation: adminProcedure
+    .input(reorderRotationSchema)
+    .mutation(async ({ ctx, input }) => {
+      const { taskId, userIds } = input;
+
+      // Ensure task exists and uses rotation or assignToAll
+      const task = await ctx.db.task.findUnique({
+        where: { id: taskId },
+        select: { id: true, useRotation: true, assignToAll: true },
+      });
+
+      if (!task) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Task not found" });
+      }
+
+      if (!task.useRotation && !task.assignToAll) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Task does not use rotation or assign to all",
+        });
+      }
+
+      await ctx.db.$transaction(async (tx) => {
+        // Delete all existing user order records for this task
+        await tx.taskUserOrder.deleteMany({
+          where: { taskId },
+        });
+
+        // Create new user order records in the desired order
+        for (let i = 0; i < userIds.length; i++) {
+          const uid = userIds[i]!;
+
+          await tx.taskUserOrder.create({
+            data: {
+              taskId,
+              userId: uid,
+              order: i,
+            },
+          });
+        }
+      });
+
+      return { success: true };
+    }),
+
+  // Get available tenants for order selection (for assignToAll tasks)
+  getAvailableTenants: adminProcedure
+    .input(z.object({ propertyId: z.string(), roomId: z.string().optional() }))
+    .query(async ({ ctx, input }) => {
+      const tenants = await ctx.db.tenantProfile.findMany({
+        where: {
+          propertyId: input.propertyId,
+          ...(input.roomId ? { roomId: input.roomId } : {}),
+        },
+        include: {
+          user: { select: { id: true, name: true, image: true } },
+        },
+        orderBy: { createdAt: "asc" },
+      });
+
+      return tenants.map((tenant) => ({
+        userId: tenant.userId,
+        user: tenant.user,
+      }));
+    }),
+
+  // Get rotation order from TaskUserOrder table
+  getRotationOrder: adminProcedure
+    .input(z.object({ taskId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      // Get task info to determine if it's assignToAll
+      const task = await ctx.db.task.findUnique({
+        where: { id: input.taskId },
+        select: { assignToAll: true, propertyId: true, roomId: true },
+      });
+
+      if (!task) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Task not found" });
+      }
+
+      // Check if we have custom rotation order
+      const customOrder = await ctx.db.taskUserOrder.findMany({
+        where: { taskId: input.taskId },
+        include: {
+          user: { select: { id: true, name: true, image: true } },
+        },
+        orderBy: { order: "asc" },
+      });
+
+      if (customOrder.length > 0) {
+        // Use custom order
+        return customOrder.map((item) => ({
+          order: item.order,
+          userId: item.userId,
+          user: item.user,
+        }));
+      }
+
+      // Fall back to default order based on task type
+      let history: Array<{
+        userId: string;
+        user: { id: string; name: string | null; image: string | null };
+      }>;
+
+      if (task.assignToAll) {
+        // For assignToAll tasks, get all tenants in the property/room
+        const tenants = await ctx.db.tenantProfile.findMany({
+          where: {
+            propertyId: task.propertyId,
+            ...(task.roomId ? { roomId: task.roomId } : {}),
+          },
+          include: {
+            user: { select: { id: true, name: true, image: true } },
+          },
+          orderBy: { createdAt: "asc" },
+        });
+
+        history = tenants.map((tenant) => ({
+          userId: tenant.userId,
+          user: tenant.user,
+        }));
+      } else {
+        // For useRotation tasks, get assignment history
+        const assignments = await ctx.db.taskAssignment.findMany({
+          where: { taskId: input.taskId },
+          select: {
+            userId: true,
+            user: { select: { id: true, name: true, image: true } },
+          },
+          orderBy: { createdAt: "asc" },
+          distinct: ["userId"],
+        });
+
+        history = assignments.map((assignment) => ({
+          userId: assignment.userId,
+          user: assignment.user,
+        }));
+      }
+
+      return history.map((h, index) => ({
+        order: index,
+        userId: h.userId,
+        user: h.user,
+      }));
+    }),
+
   // Delete a task
   delete: adminProcedure
     .input(z.object({ id: z.string() }))
@@ -554,6 +925,9 @@ export const taskRouter = createTRPCRouter({
           where: { taskId: input.id },
         }),
         ctx.db.taskRecurrence.deleteMany({
+          where: { taskId: input.id },
+        }),
+        ctx.db.taskUserOrder.deleteMany({
           where: { taskId: input.id },
         }),
         ctx.db.task.delete({
@@ -675,49 +1049,16 @@ export const taskRouter = createTRPCRouter({
 
             // Handle rotation for all tenants or specific tenants
             if (assignment.task.assignToAll || assignment.task.useRotation) {
-              // For assignToAll: get all tenants in the property/room
-              // For useRotation: get all users explicitly assigned to this task
-              let eligibleUsers: { userId: string }[] = [];
-
-              if (assignment.task.assignToAll) {
-                // Get all tenants in the property/room
-                eligibleUsers = await tx.tenantProfile.findMany({
-                  where: {
-                    propertyId: assignment.task.propertyId,
-                    ...(assignment.task.roomId
-                      ? { roomId: assignment.task.roomId }
-                      : {}),
-                  },
-                  select: { userId: true },
-                });
-              } else if (assignment.task.useRotation) {
-                // For useRotation tasks, we need to get the users who were originally selected
-                // when creating the task or updating its assignments
-
-                // First, get users from the updateAssignments endpoint
-                const taskAssignmentsHistory = await tx.taskAssignment.findMany(
-                  {
-                    where: {
-                      taskId: assignment.task.id,
-                    },
-                    select: {
-                      userId: true,
-                      createdAt: true, // To order by creation time
-                    },
-                    orderBy: {
-                      createdAt: "asc", // Get them in the order they were added
-                    },
-                    distinct: ["userId"],
-                  },
-                );
-
-                // Extract the userIds in the original order
-                eligibleUsers = taskAssignmentsHistory.map(
-                  (a: { userId: string }) => ({
-                    userId: a.userId,
-                  }),
-                );
-              }
+              // Get eligible users using the helper function
+              const eligibleUsers = await getTaskRotationOrder(
+                tx,
+                assignment.task.id,
+                {
+                  assignToAll: assignment.task.assignToAll,
+                  propertyId: assignment.task.propertyId,
+                  roomId: assignment.task.roomId,
+                },
+              );
 
               if (eligibleUsers.length > 0) {
                 // Find the current user's index
@@ -955,42 +1296,16 @@ async function checkAndRotateOverdueTasks(
 
       // Handle rotation
       if (assignment.task.assignToAll || assignment.task.useRotation) {
-        // Determine eligible users
-        let eligibleUsers: { userId: string }[] = [];
-
-        if (assignment.task.assignToAll) {
-          // Get all tenants in the property/room
-          eligibleUsers = await tx.tenantProfile.findMany({
-            where: {
-              propertyId: assignment.task.propertyId,
-              ...(assignment.task.roomId
-                ? { roomId: assignment.task.roomId }
-                : {}),
-            },
-            select: { userId: true },
-          });
-        } else if (assignment.task.useRotation) {
-          // Get users in original order
-          const taskAssignmentsHistory = await tx.taskAssignment.findMany({
-            where: {
-              taskId: assignment.task.id,
-            },
-            select: {
-              userId: true,
-              createdAt: true,
-            },
-            orderBy: {
-              createdAt: "asc",
-            },
-            distinct: ["userId"],
-          });
-
-          eligibleUsers = taskAssignmentsHistory.map(
-            (a: { userId: string }) => ({
-              userId: a.userId,
-            }),
-          );
-        }
+        // Get eligible users using the helper function
+        const eligibleUsers = await getTaskRotationOrder(
+          tx,
+          assignment.task.id,
+          {
+            assignToAll: assignment.task.assignToAll,
+            propertyId: assignment.task.propertyId,
+            roomId: assignment.task.roomId,
+          },
+        );
 
         if (eligibleUsers.length > 0) {
           // Find the current user's index
@@ -1037,6 +1352,52 @@ async function checkAndRotateOverdueTasks(
   }
 
   return overdueAssignments.length > 0; // Return true if any tasks were rotated
+}
+
+// Helper function to get rotation order for a task
+async function getTaskRotationOrder(
+  db:
+    | PrismaClient
+    | Omit<
+        PrismaClient,
+        "$connect" | "$disconnect" | "$on" | "$transaction" | "$extends"
+      >,
+  taskId: string,
+  task: { assignToAll: boolean; propertyId: string; roomId: string | null },
+): Promise<{ userId: string }[]> {
+  // Check if we have custom rotation order
+  const customOrder = await db.taskUserOrder.findMany({
+    where: { taskId },
+    select: { userId: true },
+    orderBy: { order: "asc" },
+  });
+
+  if (customOrder.length > 0) {
+    return customOrder;
+  }
+
+  // Fall back to default order based on task type
+  if (task.assignToAll) {
+    // For assignToAll tasks, get all tenants in the property/room
+    const tenants = await db.tenantProfile.findMany({
+      where: {
+        propertyId: task.propertyId,
+        ...(task.roomId ? { roomId: task.roomId } : {}),
+      },
+      select: { userId: true },
+      orderBy: { createdAt: "asc" },
+    });
+    return tenants;
+  } else {
+    // For useRotation tasks, get assignment history
+    const assignments = await db.taskAssignment.findMany({
+      where: { taskId },
+      select: { userId: true },
+      orderBy: { createdAt: "asc" },
+      distinct: ["userId"],
+    });
+    return assignments;
+  }
 }
 
 // Helper function to calculate the next due date based on frequency

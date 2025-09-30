@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 
 import { api } from "~/trpc/react";
+import { TenantOrderSelector } from "./tenant-order-selector";
 
 interface Property {
   id: string;
@@ -73,6 +74,7 @@ export function TaskForm({
             (a: { user: { id: string } }) => a.user.id,
           )
         : [],
+    userOrder: parsedInitialData?.userOrder ?? [],
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -87,6 +89,16 @@ export function TaskForm({
     );
   const { data: tenants, isLoading: isLoadingTenants } =
     api.tenant.getAll.useQuery();
+
+  // Get available tenants for order selection when assignToAll is selected
+  const { data: availableTenants, isLoading: isLoadingAvailableTenants } =
+    api.task.getAvailableTenants.useQuery(
+      {
+        propertyId: selectedPropertyId,
+        roomId: formData.roomId || undefined,
+      },
+      { enabled: !!selectedPropertyId && !assignToSpecific },
+    );
 
   // Parse data if it's a string (due to serialization)
   const parsedProperties = Array.isArray(properties)
@@ -338,6 +350,10 @@ export function TaskForm({
             ? parseInt(formData.maxAssignments)
             : undefined,
           userIds: assignToSpecific ? formData.userIds : undefined,
+          userOrder:
+            !assignToSpecific && formData.userOrder.length > 0
+              ? formData.userOrder
+              : undefined,
           startDate: new Date(formData.startDate ?? new Date().toISOString()),
           dueDate: new Date(formData.dueDate ?? new Date().toISOString()),
         });
@@ -686,6 +702,29 @@ export function TaskForm({
               </p>
             </div>
           )}
+
+          {/* Rotation Order Selection (only for assignToAll) */}
+          {!assignToSpecific &&
+            availableTenants &&
+            availableTenants.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Rotation Order (Optional)
+                </label>
+                <p className="mt-1 mb-3 text-xs text-gray-500">
+                  Drag to reorder tenants. The task will rotate in this order.
+                  Leave empty to use default order.
+                </p>
+                <TenantOrderSelector
+                  tenants={availableTenants}
+                  selectedOrder={formData.userOrder}
+                  onOrderChange={(order) =>
+                    setFormData((prev) => ({ ...prev, userOrder: order }))
+                  }
+                  disabled={isLoading}
+                />
+              </div>
+            )}
 
           {/* Rotation Option (only for assignToSpecific) */}
           {assignToSpecific && (

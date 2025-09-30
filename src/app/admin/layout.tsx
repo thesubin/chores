@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 
 import { auth } from "~/server/auth";
+import { MobileAdminNavigation } from "./_components/mobile-admin-navigation";
 
 const navigation = [
   { name: "Dashboard", href: "/admin", icon: "📊" },
@@ -27,8 +28,11 @@ export default async function AdminLayout({
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Sidebar */}
-      <div className="fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg">
+      {/* Mobile Navigation */}
+      <MobileAdminNavigation user={session.user} />
+
+      {/* Desktop Sidebar */}
+      <div className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-50 lg:w-64 lg:bg-white lg:shadow-lg">
         <div className="flex h-full flex-col">
           {/* Logo */}
           <div className="flex h-16 items-center justify-center border-b bg-blue-600">
@@ -70,8 +74,8 @@ export default async function AdminLayout({
       </div>
 
       {/* Main content */}
-      <div className="pl-64">
-        <main className="py-6">
+      <div className="lg:pl-64">
+        <main className="py-4 lg:py-6">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             {children}
           </div>
